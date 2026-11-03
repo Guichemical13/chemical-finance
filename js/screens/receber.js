@@ -2,7 +2,12 @@ import { h, sheet, toast, confirmar, select, campo, tagTom, elemento } from '../
 import { brl, brlSinal, dataBR, dataBRAno, hojeISO, parseValor, cents, uid, norm, addMes, mesDe, nomeMesLongo, nomeMes } from '../core/format.js';
 import { TIPOS, FORMAS, STATUS_NEG, situacao, custoOportunidade, totalDevido, totalCompra, pessoaDe, resumoReceber, acharOuCriarPessoa, divisaoDoLancamento, vencParcela, TAXA_OPORTUNIDADE_PADRAO } from '../core/receber.js';
 import { CARTAO } from '../core/model.js';
-import { gravar, categoria } from '../store.js';
+import { gravar, categoria, salvarConfig, excluirComDesfazer } from '../store.js';
+import { norm as normalizar } from '../core/format.js';
+
+// Etiquetas ficam na configuração: { lista: ['Família', …], pessoas: { idPessoa: ['Família'] } }.
+const etqCfg = store => { const e = store.cfg.etiquetas || {}; return { lista: [...(e.lista || [])], pessoas: { ...(e.pessoas || {}) } }; };
+const etqDe = (store, pid) => etqCfg(store).pessoas[pid] || [];
 
 const pctTxt = v => (Math.round(v * 1000) / 10).toString().replace('.', ',') + '%';
 
@@ -18,13 +23,20 @@ export function render(ctx) {
   const lista = r.lista.filter(filtra);
   const porPessoa = new Map();
   for (const x of lista) { if (!porPessoa.has(x.n.pessoa)) porPessoa.set(x.n.pessoa, []); porPessoa.get(x.n.pessoa).push(x); }
-  const grupos = [...porPessoa.entries()].map(([id, xs]) => ({ p: pessoaDe(db, id), xs: xs.sort((a, b) => b.s.saldo - a.s.saldo || String(b.n.data).localeCompare(String(a.n.data))), saldo: cents(xs.reduce((a, x) => a + x.s.saldo, 0)) }))
+  const todosGrupos = [...porPessoa.entries()].map(([id, xs]) => ({ p: pessoaDe(db, id), tags: etqDe(store, id), xs: xs.sort((a, b) => b.s.saldo - a.s.saldo || String(b.n.data).localeCompare(String(a.n.data))), saldo: cents(xs.reduce((a, x) => a + x.s.saldo, 0)) }))
     .sort((a, b) => b.saldo - a.saldo || a.p.nome.localeCompare(b.p.nome));
+  const etqs = etqCfg(store).lista;
+  if (est.etq && est.etq !== 'Todas' && !etqs.includes(est.etq)) est.etq = 'Todas';
+  est.etq ||= 'Todas';
+  const grupos = todosGrupos.filter(g => est.etq === 'Todas' || g.tags.includes(est.etq));
+  const barraEtq = h('div.chips', { role: 'group', 'aria-label': 'Filtrar por etiqueta', style: { marginBottom: '12px' } },
+    ['Todas', ...etqs].map(e => h('button.chip', { 'aria-pressed': String(est.etq === e), onclick: () => { est.etq = e; ctx.refresh(); } }, `${e} · ${e === 'Todas' ? todosGrupos.length : todosGrupos.filter(g => g.tags.includes(e)).length}`)),
+    h('button.chip.add', { onclick: () => gerenciarEtiquetas(ctx) }, etqs.length ? 'Etiquetas…' : '+ Etiqueta'));
 
   return h('div', {},
     h('div.ph', {}, h('div', {}, h('div.sub', {}, 'Empréstimos, vendas e compras divididas'), h('h1', {}, 'A receber')),
       h('div.acts', {}, h('button.btn.pri', { onclick: () => editarNeg(ctx, null) }, '+ Negociação'))),
-    h('div.grid.g3', { style: { marginBottom: '16px' } },
+    h('div.grid.g3.kpis', { style: { marginBottom: '16px' } },
       h('div.card.ink', {}, h('h2.sec', {}, 'Em aberto'), h('div', { style: { font: '500 28px var(--mono)' } }, brl(r.total)),
         h('div.muted.mono', { style: { marginTop: '8px', fontSize: '13px' } }, `${r.abertas.length} ${r.abertas.length === 1 ? 'negociação' : 'negociações'} · ${r.pessoas} ${r.pessoas === 1 ? 'pessoa' : 'pessoas'}`)),
       h('div.card', {}, h('h2.sec', {}, 'Em atraso'), h('div', { class: r.atrasado ? 'neg' : '', style: { font: '500 28px var(--mono)' } }, brl(r.atrasado)),
@@ -33,9 +45,13 @@ export function render(ctx) {
         h('div.muted.mono', { style: { marginTop: '8px', fontSize: '13px' } }, 'inclui escambo'))),
     h('div.row', { role: 'group', 'aria-label': 'Filtro', style: { marginBottom: '12px' } },
       [['abertas', 'Em aberto'], ['encerradas', 'Encerradas'], ['todas', 'Todas']].map(([v, t]) => h('button.chip', { 'aria-pressed': String(est.filtro === v), onclick: () => { est.filtro = v; ctx.refresh(); } }, t))),
+    todosGrupos.length ? barraEtq : null,
     grupos.length ? h('div.stack', {}, grupos.map(g => h('div.card', {},
       h('div.row', { style: { marginBottom: '6px' } }, h('b', { style: { fontSize: '18px', flex: 1 } }, g.p.nome), g.saldo ? h('span.mono', {}, brl(g.saldo)) : h('span.muted.mono', {}, 'nada em aberto')),
+      h('div.row', { style: { gap: '6px', marginBottom: '8px' } }, g.tags.map(t => h('span.etq', {}, t)),
+        h('button.btn.sm.ghost', { style: { minHeight: '28px', padding: '0 8px', color: 'var(--ink2)' }, onclick: () => etiquetarPessoa(ctx, g.p), 'aria-label': `Etiquetas de ${g.p.nome}` }, g.tags.length ? '✎' : '+ etiqueta')),
       g.xs.map(x => linhaNeg(ctx, x)))))
+      : todosGrupos.length ? h('div.empty', {}, h('b', {}, `Ninguém com a etiqueta "${est.etq}" aqui`), h('button.btn', { onclick: () => { est.etq = 'Todas'; ctx.refresh(); } }, 'Ver todas'))
       : h('div.empty', {}, elemento({ simbolo: 'Ar', numero: 6, cor: 'out' }, 'lg'),
         h('b', {}, est.filtro === 'abertas' ? 'Ninguém te deve nada agora' : 'Nada por aqui'),
         h('p.muted', {}, 'Cadastre um empréstimo, uma venda parcelada ou uma compra do cartão que você dividiu. Para dividir uma compra já importada, abra o lançamento e toque em "Dividir com alguém".'),
@@ -91,16 +107,14 @@ function detalhe(ctx, id) {
     s.recebimentos.length ? s.recebimentos.map(rc => h('div.kv', {},
       h('span', {}, dataBRAno(rc.data), ' · ', rc.forma, rc.item ? h('span.muted', {}, ' · ', rc.item) : null, rc.obs ? h('span.muted', {}, ' · ', rc.obs) : null),
       h('span', {}, brl(rc.valor), h('button.btn.sm.ghost', { 'aria-label': 'Excluir recebimento de ' + dataBRAno(rc.data), onclick: async () => {
-        if (!await confirmar('Excluir recebimento?', `${brl(rc.valor)} em ${dataBRAno(rc.data)}${rc.lancSobraId ? '. A receita da sobra também sai.' : ''}`, 'Excluir', true)) return reabrir();
-        const ops = [{ acao: 'excluir', tabela: 'recebimentos', ids: [rc.id] }];
-        if (rc.lancSobraId) ops.push({ acao: 'excluir', tabela: 'lancamentos', ids: [rc.lancSobraId] });
-        try { await gravar(ops); toast('Recebimento excluído'); } catch (e) { toast(e.message); }
+        close();
+        try { await excluirComDesfazer([{ tabela: 'recebimentos', ids: [rc.id] }, { tabela: 'lancamentos', ids: rc.lancSobraId ? [rc.lancSobraId] : [] }], `Recebimento de ${brl(rc.valor)} excluído`); } catch (e) { toast(e.message, { tom: 'erro' }); }
         reabrir();
       } }, '✕'))))
       : h('p.muted', { style: { margin: 0 } }, 'Nenhum ainda.'),
     n.obs ? h('p.muted', { style: { margin: 0 } }, n.obs) : null,
     h('div.row', { style: { marginTop: '6px' } },
-      h('button.btn.danger.sm', { onclick: async () => { close(); await excluirNeg(ctx, n, s); } }, 'Excluir'),
+      h('button.btn.danger.sm', { onclick: () => { close(); excluirNeg(ctx, n, s); } }, 'Excluir'),
       s.saldo > 0 ? h('button.btn.sm', { onclick: async () => { close(); await perdoar(ctx, n, s, p); } }, 'Perdoar saldo') : null,
       s.status === 'perdoada' ? h('button.btn.sm', { onclick: async () => { close(); await desfazerPerdao(ctx, n); } }, 'Desfazer perdão') : null,
       h('span', { style: { flex: 1 } }),
@@ -196,12 +210,69 @@ async function desfazerPerdao(ctx, n) {
 }
 
 async function excluirNeg(ctx, n, s) {
-  if (!await confirmar('Excluir negociação?', `"${n.desc}" e ${s.recebimentos.length} ${s.recebimentos.length === 1 ? 'recebimento' : 'recebimentos'} saem do app${n.perdaLancId ? ', junto com o gasto da perda' : ''}. A compra no cartão (se houver) continua.`, 'Excluir', true)) return detalhe(ctx, n.id);
-  const ops = [{ acao: 'excluir', tabela: 'negociacoes', ids: [n.id] }];
-  if (s.recebimentos.length) ops.push({ acao: 'excluir', tabela: 'recebimentos', ids: s.recebimentos.map(r => r.id) });
   const lancs = [n.perdaLancId, ...s.recebimentos.map(r => r.lancSobraId)].filter(Boolean);
-  if (lancs.length) ops.push({ acao: 'excluir', tabela: 'lancamentos', ids: lancs });
-  try { await gravar(ops); toast('Negociação excluída'); } catch (e) { toast(e.message); }
+  try {
+    await excluirComDesfazer([{ tabela: 'negociacoes', ids: [n.id] }, { tabela: 'recebimentos', ids: s.recebimentos.map(r => r.id) }, { tabela: 'lancamentos', ids: lancs }], `"${n.desc}" excluída`);
+  } catch (e) { toast(e.message, { tom: 'erro' }); }
+}
+
+// ---------- etiquetas ----------
+function etiquetarPessoa(ctx, p) {
+  const { store } = ctx;
+  const cfg = etqCfg(store);
+  const marcadas = new Set(cfg.pessoas[p.id] || []);
+  let nova = '';
+  sheet(`Etiquetas de ${p.nome}`, close => {
+    const lista = h('div.stack');
+    const desenhar = () => lista.replaceChildren(...(cfg.lista.length ? cfg.lista.map(e => h('label.row', { style: { gap: '10px', minHeight: '40px' } },
+      h('input', { type: 'checkbox', checked: marcadas.has(e), onchange: ev => { if (ev.target.checked) marcadas.add(e); else marcadas.delete(e); } }), h('span.etq', {}, e)))
+      : [h('p.muted', { style: { margin: 0 } }, 'Nenhuma etiqueta ainda. Crie a primeira abaixo, como "Família" ou "Faculdade".')]));
+    desenhar();
+    const campoNova = h('input.in', { placeholder: 'nova etiqueta', 'aria-label': 'Nova etiqueta', style: { flex: '1 1 160px', width: 'auto' }, oninput: e => nova = e.target.value,
+      onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); adicionar(); } } });
+    const adicionar = () => {
+      const t = nova.trim(); if (!t) return;
+      const ex = cfg.lista.find(x => normalizar(x) === normalizar(t));
+      if (!ex) cfg.lista.push(t);
+      marcadas.add(ex || t); nova = ''; campoNova.value = ''; desenhar();
+    };
+    return h('div.stack', {}, lista,
+      h('div.row', {}, campoNova, h('button.btn.sm', { onclick: adicionar }, 'Adicionar')),
+      h('div.row', { style: { justifyContent: 'flex-end' } }, h('button.btn', { onclick: close }, 'Cancelar'),
+        h('button.btn.pri', { onclick: async () => {
+          const pessoas = { ...cfg.pessoas, [p.id]: cfg.lista.filter(e => marcadas.has(e)) };
+          try { await salvarConfig({ etiquetas: { lista: cfg.lista, pessoas } }); close(); toast('Etiquetas salvas'); } catch (e) { toast(e.message, { tom: 'erro' }); }
+        } }, 'Salvar')));
+  });
+}
+
+function gerenciarEtiquetas(ctx) {
+  const { store } = ctx;
+  const cfg = etqCfg(store);
+  if (!cfg.lista.length) {
+    const p = (store.db.pessoas || [])[0];
+    toast(p ? 'Abra uma pessoa e toque em "+ etiqueta" para criar a primeira.' : 'Cadastre uma negociação primeiro.');
+    return;
+  }
+  sheet('Etiquetas', close => {
+    const lista = h('div.stack');
+    const desenhar = () => lista.replaceChildren(...cfg.lista.map((e, i) => h('div.row', { style: { minHeight: '44px' } },
+      h('input.in', { value: e, 'aria-label': 'Nome da etiqueta', style: { flex: 1, width: 'auto' }, oninput: ev => { cfg.renomear = { ...(cfg.renomear || {}), [i]: ev.target.value }; } }),
+      h('span.muted.mono', { style: { fontSize: '12px' } }, Object.values(cfg.pessoas).filter(ts => ts.includes(e)).length + ' pessoas'),
+      h('button.btn.sm.ghost', { 'aria-label': 'Apagar etiqueta ' + e, onclick: () => { cfg.lista.splice(i, 1); for (const k in cfg.pessoas) cfg.pessoas[k] = cfg.pessoas[k].filter(x => x !== e); desenhar(); } }, '✕'))));
+    desenhar();
+    return h('div.stack', {},
+      h('p.muted', { style: { margin: 0, fontSize: '13px' } }, 'Renomeie ou apague. Para pôr uma etiqueta em alguém, use "+ etiqueta" no card da pessoa.'),
+      lista,
+      h('div.row', { style: { justifyContent: 'flex-end' } }, h('button.btn', { onclick: close }, 'Cancelar'),
+        h('button.btn.pri', { onclick: async () => {
+          const ren = cfg.renomear || {};
+          const novaLista = cfg.lista.map((e, i) => (ren[i] ?? e).trim() || e);
+          const mapa = Object.fromEntries(cfg.lista.map((e, i) => [e, novaLista[i]]));
+          const pessoas = Object.fromEntries(Object.entries(cfg.pessoas).map(([k, ts]) => [k, ts.map(t => mapa[t] || t)]));
+          try { await salvarConfig({ etiquetas: { lista: novaLista, pessoas } }); close(); toast('Etiquetas salvas'); } catch (e) { toast(e.message, { tom: 'erro' }); }
+        } }, 'Salvar')));
+  });
 }
 
 // ---------- nova / editar ----------

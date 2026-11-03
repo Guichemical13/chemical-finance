@@ -7,14 +7,17 @@ import { categoria } from '../store.js';
 
 export function vencimentoDe(mes, cfg) { return `${mes}-${String(cfg.diaVencimento || 2).padStart(2, '0')}`; }
 
-export function blocoAlertas(ctx, lista) {
-  if (!lista.length) return h('div.card', {}, h('div.row', {}, h('span.tag.pos', {}, '✓'), 'Nenhum alerta. Tudo dentro do plano.'));
-  const tom = { alta: ['var(--neg)', 'var(--negTint)'], media: ['var(--warn)', 'var(--warnTint)'], info: ['var(--info)', 'var(--infoTint)'] };
-  return h('div.stack', {}, lista.map(a => h('div.alert', { style: { '--c': tom[a.sev][0], '--t': tom[a.sev][1] }, role: a.sev === 'alta' ? 'alert' : null },
-    h('div.dia', { 'aria-hidden': 'true' }, h('span', {}, a.glyph)),
-    h('div', {}, h('span.nivel', {}, a.nivel), h('b', {}, a.titulo), h('p', {}, a.texto)),
-    h('div.acts', {}, h('button.btn.sm', { onclick: () => ctx.go(a.to, a.ref ? { ver: a.ref } : null) }, a.acao),
-      h('button.btn.sm.ghost', { onclick: () => ctx.dispensar(a.id), 'aria-label': 'Dispensar alerta: ' + a.titulo }, 'Dispensar')))));
+/** Faixa compacta: resume as notificações não lidas e abre o sino. */
+export function faixaNotificacoes(ctx, lista) {
+  const nl = lista.filter(a => !a.lida);
+  if (!nl.length) return lista.length ? h('button.btn.sm.ghost', { style: { marginBottom: '12px', color: 'var(--ink2)' }, onclick: ctx.abrirNotificacoes }, '✓ Nenhuma notificação nova · ver todas') : null;
+  const ordem = { alta: 0, media: 1, info: 2 };
+  const top = [...nl].sort((a, b) => ordem[a.sev] - ordem[b.sev])[0];
+  const tom = { alta: ['var(--neg)', 'var(--negTint)'], media: ['var(--warn)', 'var(--warnTint)'], info: ['var(--info)', 'var(--infoTint)'] }[top.sev];
+  const urg = nl.filter(a => a.sev === 'alta').length, outras = nl.length - urg;
+  const txt = urg ? [h('b', {}, `${urg} ${urg === 1 ? 'urgente' : 'urgentes'}`), outras ? ` e ${outras} ${outras === 1 ? 'outra notificação' : 'outras notificações'}` : ''] : [h('b', {}, `${nl.length} ${nl.length === 1 ? 'notificação nova' : 'notificações novas'}`)];
+  return h('button.nfaixa', { style: { '--c': tom[0], '--t': tom[1] }, onclick: ctx.abrirNotificacoes, role: top.sev === 'alta' ? 'alert' : null },
+    h('span.ndia', { 'aria-hidden': 'true' }, h('span', {}, top.glyph)), h('span.txt', {}, ...txt, h('br'), h('span', { style: { color: 'var(--ink2)', fontSize: '13px' } }, top.titulo)), h('span.abre', {}, 'ABRIR'));
 }
 
 export function render(ctx) {
@@ -40,6 +43,7 @@ export function render(ctx) {
       h('div.acts', { role: 'group', 'aria-label': 'Fatura' },
         [[fechada, 'Fechada · vence ' + vencimentoDe(fechada, cfg).slice(8) + '/' + fechada.slice(5)], [aberta, 'Aberta · vence ' + vencimentoDe(aberta, cfg).slice(8) + '/' + aberta.slice(5)]].map(([m, t]) =>
           h('button.chip', { 'aria-pressed': String(m === mes), onclick: () => { est.mes = m; ctx.refresh(); } }, t)))),
+    faixaNotificacoes(ctx, al),
     h('div.grid.g2', {},
       h('div.stack', {},
         h('div.card.ink', {},
@@ -51,14 +55,14 @@ export function render(ctx) {
           h('div.bar.hatch', { 'aria-hidden': 'true' },
             h('span', { style: { width: Math.min(100, Math.min(r.fatura, teto) / Math.max(r.fatura, teto) * 100) + '%', '--c': 'var(--ink)' } }),
             acima > 0 ? h('span.over', { style: { left: (teto / r.fatura * 100) + '%', width: (acima / r.fatura * 100) + '%' } }) : null),
-          parteOutros ? h('div.kv', { style: { marginTop: '10px' } }, h('span', {}, '÷ Custo real (sem a parte dos outros)'), h('span', {}, brl(r.fatura - parteOutros), h('span.muted', {}, ' · ', brl(parteOutros), ' a receber'))) : null,
+          parteOutros ? h('div.kv', { style: { marginTop: '10px' } }, h('span', {}, '÷ Custo real', h('span.muted', { style: { display: 'block', fontSize: '12px' } }, `sem os ${brl(parteOutros)} que vão te pagar`)), h('span', {}, brl(r.fatura - parteOutros))) : null,
           h('hr.rule'),
           h('div.kv', {}, h('span', {}, '■ Fixos e recorrentes'), h('span', {}, brl(r.fixos), ' · ', r.saidas ? pct(r.fixos / r.saidas) : '0%')),
           h('div.kv', {}, h('span', {}, '○ Pontuais'), h('span', {}, brl(r.pontuais), ' · ', r.saidas ? pct(r.pontuais / r.saidas) : '0%')),
           h('div.kv', {}, h('span', {}, 'Entradas do mês'), h('span.pos', {}, brlSinal(r.entradas))),
           h('div.kv', {}, h('span', {}, 'Saídas do mês (todas as origens)'), h('span', {}, brlSinal(-r.saidas))),
           h('div.kv', {}, h('span', {}, h('b', {}, 'Saldo do mês')), h('span', { class: r.saldo < 0 ? 'neg' : 'pos' }, h('b', {}, brlSinal(r.saldo))))),
-        h('div', {}, h('h2.sec', {}, `Alertas · ${al.length}`), blocoAlertas(ctx, al))),
+        ),
       h('div.stack', {},
         h('div.card', {},
           h('h2.sec', {}, 'Caixinha Casa'),

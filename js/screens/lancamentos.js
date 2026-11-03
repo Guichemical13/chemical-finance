@@ -1,7 +1,7 @@
 import { h, elemento, sheet, toast, confirmar, select, campo, tagTom } from '../ui.js';
 import { brl, brlSinal, nomeMesLongo, addMes, dataBR, hojeISO, norm, uid, cents, parseValor, mesDe } from '../core/format.js';
 import { linhasDoMes, ORIGENS, CARTAO, mesFaturaAberta, mesFaturaDaCompra } from '../core/model.js';
-import { categoria, categoriasAtivas, salvar, excluir, gravar } from '../store.js';
+import { categoria, categoriasAtivas, salvar, excluir, gravar, excluirComDesfazer } from '../store.js';
 import { divisaoDoLancamento, pessoaDe } from '../core/receber.js';
 
 export function render(ctx) {
@@ -110,8 +110,9 @@ export function editar(ctx, l, mesVisto) {
     };
     const apagar = async () => {
       const dvx = divisaoDoLancamento(store.db, l.id);
-      if (!await confirmar('Excluir lançamento?', `"${l.desc}" sai de todos os meses${l.parcelas > 1 ? ' (todas as parcelas)' : ''}.${dvx ? ` A divisão com ${pessoaDe(store.db, dvx.pessoa).nome} continua em "A receber", com o valor gravado.` : ''}`, 'Excluir', true)) return;
-      try { await excluir('lancamentos', l.id); close(); toast('Lançamento excluído'); } catch (e) { erro.textContent = e.message; }
+      close();
+      try { await excluirComDesfazer([{ tabela: 'lancamentos', ids: [l.id] }], `"${l.desc}" excluído${l.parcelas > 1 ? ' (todas as parcelas)' : ''}${dvx ? '. A divisão continua em A receber' : ''}`); }
+      catch (e) { toast(e.message, { tom: 'erro' }); }
     };
     const rec = h('div.fgrid.full', { style: { display: f.recorrente ? '' : 'none' } },
       campo('Repete até (AAAA-MM, vazio = sem fim)', h('input.in.mono', { value: f.fimMes || '', placeholder: 'sem fim', oninput: e => f.fimMes = e.target.value })));

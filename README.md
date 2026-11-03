@@ -88,6 +88,13 @@ O arquivo `chemical-finance-migracao.json` foi gerado à parte e **não vai para
 
 Depois de atualizar o site, **atualize também o backend** (abaixo). Enquanto o Code.gs for o antigo, o app avisa no topo e as telas novas não gravam.
 
+## Novidades da versão 1.2 (UX)
+
+- **Menu:** no celular, o ☰ abre uma gaveta com todas as telas agrupadas (Dia a dia, Planejamento, Conta). No computador, o menu lateral recolhe para só os ícones.
+- **Notificações:** o sino no topo abre a central, com "Não lidas" e "Todas". Tocar numa notificação marca como lida e abre a tela dela; "lida" sincroniza entre aparelhos. No Início fica só uma faixa compacta.
+- **Resposta a cada ação:** indicador de sincronização no topo (toque para sincronizar), botões que mostram "Salvando…", avisos com **Desfazer** ao excluir (lançamentos, recebimentos, negociações, regras, salários, marcos), puxar para atualizar no celular, splash ao abrir e transições suaves. Com "reduzir movimento" ligado no aparelho, as animações somem.
+- **Etiquetas de pessoas** no A receber: crie etiquetas como "Família" ou "Faculdade" no card da pessoa e filtre pelos chips. Ficam na configuração, então **não precisa atualizar o backend** para esta versão.
+
 ## Atualizar o backend depois
 
 Quando o `Code.gs` mudar, cole a nova versão e use **Implantar › Gerenciar implantações › Editar (lápis) › Versão: Nova versão**. Assim a URL `/exec` continua a mesma.

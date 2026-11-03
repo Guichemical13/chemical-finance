@@ -2,7 +2,7 @@ import { h, sheet, toast, confirmar } from '../ui.js';
 import { brl, dataBRAno, diasAte, hojeISO, nomeMes, parseValor, cents, uid, mesDe } from '../core/format.js';
 import { ultimaCaixinha } from '../core/model.js';
 import { simular } from '../core/plan.js';
-import { salvar, excluir, salvarConfig } from '../store.js';
+import { salvar, excluir, salvarConfig, excluirComDesfazer } from '../store.js';
 import { linhas, legenda } from './graf.js';
 
 export function render(ctx) {
@@ -92,7 +92,7 @@ function editarMarco(ctx, m) {
     h('label.f', {}, 'O que', h('input.in', { value: f.titulo, oninput: e => f.titulo = e.target.value })),
     h('div.fgrid', {}, h('label.f', {}, 'Data', h('input.in.mono', { type: 'date', value: f.data, onchange: e => f.data = e.target.value })),
       h('label.f', {}, 'Tipo', h('select.in', { onchange: e => f.tipo = e.target.value }, h('option', { value: 'marco', selected: f.tipo !== 'meta' }, 'Marco'), h('option', { value: 'meta', selected: f.tipo === 'meta' }, 'Meta final')))),
-    h('div.row', {}, m ? h('button.btn.danger', { onclick: async () => { if (await confirmar('Excluir marco?', f.titulo, 'Excluir', true)) { await excluir('plano', f.id); close(); } } }, 'Excluir') : null, h('span', { style: { flex: 1 } }),
+    h('div.row', {}, m ? h('button.btn.danger', { onclick: () => { close(); excluirComDesfazer([{ tabela: 'plano', ids: [f.id] }], `Marco "${f.titulo}" excluído`).catch(e => toast(e.message, { tom: 'erro' })); } }, 'Excluir') : null, h('span', { style: { flex: 1 } }),
       h('button.btn', { onclick: close }, 'Cancelar'),
       h('button.btn.pri', { onclick: async () => { if (!f.titulo.trim()) return; try { await salvar('plano', f); close(); } catch (e) { toast(e.message); } } }, 'Salvar'))));
 }

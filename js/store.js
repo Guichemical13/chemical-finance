@@ -2,6 +2,7 @@
 import { CATEGORIAS_PADRAO, CONFIG_PADRAO, configDe } from './core/model.js';
 import { obterToken, sair } from './auth.js';
 import { demoDb } from './demo.js';
+import { toast } from './ui.js';
 
 export const TABELAS = ['lancamentos', 'categorias', 'orcamento', 'regras', 'salario', 'importacoes', 'plano', 'caixinha', 'patrimonio', 'dividas', 'config', 'pessoas', 'negociacoes', 'recebimentos', 'fundos', 'extratos'];
 const vazio = () => Object.fromEntries(TABELAS.map(t => [t, []]));
@@ -22,6 +23,7 @@ export const store = {
   db: vazio(),
   cfg: structuredClone(CONFIG_PADRAO),
   status: 'carregando', // carregando | pronto | offline | erro
+  salvando: 0, // gravações em andamento (indicador do topo)
   erro: '',
   ultimaSync: null,
   get modo() { return setup.get()?.modo || null; },
@@ -101,16 +103,31 @@ export async function gravar(ops) {
   // Linhas completas para o backend (salvar faz upsert da linha inteira).
   const completas = ops.map(op => op.acao !== 'salvar' ? op : { ...op, linhas: op.linhas.map(l => ({ ...(store.db[op.tabela] || []).find(x => x.id === l.id), ...l })) });
   completas.forEach(aplicarLocal);
-  store.emit();
-  if (store.modo === 'demo') { ls.set('cf.demo', store.db); return; }
+  if (store.modo === 'demo') { store.emit(); ls.set('cf.demo', store.db); return; }
+  store.salvando++; store.emit();
   try {
     await api('lote', { ops: completas });
     store.ultimaSync = new Date().toISOString();
     ls.set('cf.cache', { db: store.db, em: store.ultimaSync });
   } catch (e) {
-    store.db = antes; store.emit();
+    store.db = antes;
     throw e;
+  } finally {
+    store.salvando = Math.max(0, store.salvando - 1); store.emit();
   }
+}
+
+/**
+ * Exclui na hora e oferece "Desfazer" no aviso. `alvos` = [{ tabela, ids }].
+ * Desfazer grava de volta as linhas exatamente como estavam.
+ */
+export async function excluirComDesfazer(alvos, rotulo) {
+  const copias = alvos.map(a => ({ tabela: a.tabela, linhas: (store.db[a.tabela] || []).filter(x => a.ids.includes(x.id)).map(x => structuredClone(x)) })).filter(c => c.linhas.length);
+  await gravar(alvos.filter(a => a.ids.length).map(a => ({ acao: 'excluir', tabela: a.tabela, ids: a.ids })));
+  toast(rotulo, { acao: 'Desfazer', onAcao: async () => {
+    try { await gravar(copias.map(c => ({ acao: 'salvar', tabela: c.tabela, linhas: c.linhas }))); toast('Desfeito'); }
+    catch (e) { toast(e.message, { tom: 'erro' }); }
+  } });
 }
 export const salvar = (tabela, linhas) => gravar([{ acao: 'salvar', tabela, linhas: [].concat(linhas) }]);
 export const excluir = (tabela, ids) => gravar([{ acao: 'excluir', tabela, ids: [].concat(ids) }]);

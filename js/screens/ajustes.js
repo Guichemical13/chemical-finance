@@ -1,7 +1,7 @@
 import { h, elemento, sheet, toast, confirmar, select, toggle } from '../ui.js';
 import { brl, nomeMes, mesAtual, parseValor, cents, uid, norm } from '../core/format.js';
 import { CORES } from '../core/model.js';
-import { store, setup, salvar, excluir, salvarConfig, gravar, categoria, categoriasAtivas, resetarDemo, carregar, TABELAS } from '../store.js';
+import { store, setup, salvar, excluir, salvarConfig, gravar, categoria, categoriasAtivas, resetarDemo, carregar, TABELAS, excluirComDesfazer } from '../store.js';
 import { emailDoToken, sair } from '../auth.js';
 
 export function render(ctx) {
@@ -23,13 +23,13 @@ export function render(ctx) {
           h('p.muted', { style: { margin: '0 0 8px', fontSize: '13px' } }, 'Na importação, a descrição que contém o trecho vai para a categoria. A regra mais específica vence.'),
           regras.length ? regras.map(r => h('div.row', { style: { padding: '6px 0', borderBottom: '1px solid var(--line)' } },
             h('span.mono', { style: { flex: 1, fontSize: '13px' } }, `"${r.contem}"`), '→', elemento(categoria(r.categoria), 'sm'), h('span', {}, categoria(r.categoria).nome),
-            h('button.btn.sm.ghost', { 'aria-label': 'Excluir regra ' + r.contem, onclick: async () => { try { await excluir('regras', r.id); } catch (e) { toast(e.message); } } }, '✕')))
+            h('button.btn.sm.ghost', { 'aria-label': 'Excluir regra ' + r.contem, onclick: async () => { try { await excluirComDesfazer([{ tabela: 'regras', ids: [r.id] }], `Regra "${r.contem}" excluída`); } catch (e) { toast(e.message, { tom: 'erro' }); } } }, '✕')))
             : h('p.muted', {}, 'Nenhuma regra. Elas são criadas quando você troca a categoria de uma linha na importação.'),
           novaRegra()),
         sec('salario', 'Salário líquido',
           h('p.muted', { style: { margin: '0 0 8px', fontSize: '13px' } }, 'Entra como receita fixa todo mês. Um valor novo vale do mês informado em diante.'),
           sal.map(s => h('div.kv', {}, h('span', {}, 'desde ', nomeMes(s.desde), s.obs ? h('span.muted', {}, ' · ', s.obs) : null), h('span', {}, brl(s.liquido),
-            h('button.btn.sm.ghost', { 'aria-label': 'Excluir', onclick: async () => { if (await confirmar('Excluir este valor?', `${brl(s.liquido)} desde ${nomeMes(s.desde)}`, 'Excluir', true)) excluir('salario', s.id).catch(e => toast(e.message)); } }, '✕')))),
+            h('button.btn.sm.ghost', { 'aria-label': 'Excluir', onclick: () => excluirComDesfazer([{ tabela: 'salario', ids: [s.id] }], `Salário de ${brl(s.liquido)} excluído`).catch(e => toast(e.message, { tom: 'erro' })) }, '✕')))),
           novoSalario())),
       h('div.stack', {},
         sec('alertas', 'Alertas',
