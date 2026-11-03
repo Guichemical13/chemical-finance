@@ -1,7 +1,7 @@
 // Importação da fatura: classifica cada linha do CSV contra o que já existe, sem gravar nada.
 // O resultado vira a prévia; `planejarGravacao` transforma as escolhas em criações/alterações.
 import { norm, cents, addMes, difMes, uid } from './format.js';
-import { CARTAO, parteParcela, ocorrencia, totalFatura, sugerirCategoria } from './model.js';
+import { CARTAO, parteParcela, ocorrencia, totalFatura, sugerirCategoria, configDe } from './model.js';
 
 export const STATUS = {
   nova: { label: 'Nova', glyph: '+', tom: 'pos', acao: 'Será importada' },
@@ -41,7 +41,7 @@ export function analisarFatura(db, fatura) {
   const venc = fatura.vencimento;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(venc || '')) throw new Error('Informe o vencimento da fatura.');
   const M = venc.slice(0, 7);
-  const cfg = db.config || {};
+  const cfg = configDe(db);
   const doCartao = (db.lancamentos || []).filter(l => l.origem === CARTAO && l.tipo !== 'receita');
 
   // Pools do que já existe no mês da fatura.

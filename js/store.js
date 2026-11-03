@@ -1,9 +1,9 @@
 // Estado do app + sincronização com o backend (Apps Script) ou com o modo demonstração.
-import { CATEGORIAS_PADRAO, CONFIG_PADRAO } from './core/model.js';
+import { CATEGORIAS_PADRAO, CONFIG_PADRAO, configDe } from './core/model.js';
 import { obterToken, sair } from './auth.js';
 import { demoDb } from './demo.js';
 
-export const TABELAS = ['lancamentos', 'categorias', 'orcamento', 'regras', 'salario', 'importacoes', 'plano', 'caixinha', 'patrimonio', 'dividas', 'config'];
+export const TABELAS = ['lancamentos', 'categorias', 'orcamento', 'regras', 'salario', 'importacoes', 'plano', 'caixinha', 'patrimonio', 'dividas', 'config', 'pessoas', 'negociacoes', 'recebimentos', 'fundos', 'extratos'];
 const vazio = () => Object.fromEntries(TABELAS.map(t => [t, []]));
 const ls = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
@@ -29,14 +29,7 @@ export const store = {
   emit() { this.cfg = montarConfig(this.db.config); ouvintes.forEach(f => f()); },
 };
 
-function montarConfig(rows) {
-  const c = structuredClone(CONFIG_PADRAO);
-  for (const r of rows || []) {
-    if (r.valor && typeof r.valor === 'object' && !Array.isArray(r.valor) && c[r.id] && typeof c[r.id] === 'object') c[r.id] = { ...c[r.id], ...r.valor };
-    else c[r.id] = r.valor;
-  }
-  return c;
-}
+const montarConfig = rows => configDe({ config: rows || [] });
 
 // ---------- backend ----------
 async function api(acao, corpo = {}, tentou = false) {
@@ -68,7 +61,9 @@ export async function carregar() {
   const cache = ls.get('cf.cache', null);
   if (cache) { store.db = { ...vazio(), ...cache.db }; store.ultimaSync = cache.em; store.emit(); }
   try {
-    store.db = { ...vazio(), ...await api('carregar') };
+    const dados = await api('carregar');
+    store.backendVelho = !('negociacoes' in dados); // Code.gs anterior à versão 1.1.0
+    store.db = { ...vazio(), ...dados };
     store.ultimaSync = new Date().toISOString();
     if (!store.db.categorias.length) await semear();
     ls.set('cf.cache', { db: store.db, em: store.ultimaSync });

@@ -1,6 +1,6 @@
 # Chemical Finance
 
-Webapp pessoal de finanças: importa a fatura do Nubank (CSV) sem duplicar nada, acompanha o orçamento, o plano de quitação e o patrimônio. Funciona no celular e no computador e pode ser instalado como app (PWA).
+Webapp pessoal de finanças: importa a fatura do Nubank (CSV) sem duplicar nada, acompanha o orçamento, o plano de quitação, o patrimônio (com o Extrato de Fundos em PDF) e o que outras pessoas têm a te pagar. Funciona no celular e no computador e pode ser instalado como app (PWA).
 
 **Privacidade.** Este repositório tem só o código, nenhum dado. Os dados ficam numa planilha Google sua. O backend (Apps Script) só responde a quem entra com a conta Google autorizada. O app guarda uma cópia local no aparelho para consulta offline; em computador compartilhado, use *Ajustes › Desconectar aparelho*.
 
@@ -64,6 +64,30 @@ O arquivo `chemical-finance-migracao.json` foi gerado à parte e **não vai para
 1. **Ajustes › Importar backup** e escolha o arquivo.
 2. Em **Importar fatura**, reimporte os CSVs de **02/10** e **02/11**. Quase tudo aparece como duplicada ou já existente. Faltam só pares que se anulam (IOF + IOF de volta, compra + estorno), e o app passa a guardar os centavos reais de cada parcela. Depois disso, as duas faturas batem com o arquivo.
 
+## Novidades da versão 1.1
+
+**A receber** (tecla 6). Empréstimos, vendas parceladas e compras do cartão divididas com alguém.
+- Empréstimo não entra no orçamento: é o seu dinheiro saindo e voltando.
+- Venda: cada recebimento em Pix ou dinheiro vira receita na categoria Vendas.
+- Compra dividida: a compra entra inteira na fatura; cada recebimento abate o gasto da categoria. O Início mostra o "custo real" da fatura sem a parte dos outros. O alerta de parcelamento novo continua valendo.
+- Escambo quita a dívida, mas não entra no orçamento.
+- Recebimentos abatem as parcelas mais antigas primeiro. Valor acima do saldo pergunta o que fazer com a sobra.
+- Perdoar o saldo de um empréstimo lança a perda como gasto.
+- Cada empréstimo ou venda mostra o custo de oportunidade (taxa em Ajustes).
+- Para dividir uma compra já importada: abra o lançamento e toque em **Dividir com alguém**.
+
+**Extrato de Fundos (PDF).** Em *Patrimônio › Importar extrato (PDF)*. O PDF é lido no aparelho (pdf.js) e não é guardado; só CNPJ, nome, saldo e transações de cada fundo vão para a planilha, depois da prévia.
+- Cada fundo é identificado pelo CNPJ; a classe é sugerida uma vez e lembrada.
+- Reenviar o mesmo mês substitui os saldos daquele mês.
+- Na prévia, marque a linha manual que o extrato substitui (ex.: "Fundos"), para não contar duas vezes.
+- Variação acima de 10% sem movimentação gera aviso; fundo que sumiu pede confirmação.
+- Transações em processamento ficam "a liquidar" e são conferidas no extrato seguinte.
+- Rendimento real do mês = saldo − saldo anterior − aplicações + resgates (a partir do 2º extrato).
+
+**Correção.** Os alertas e o importador liam a configuração do jeito errado: o alerta de fatura acima do teto não disparava e a data de início do plano era ignorada.
+
+Depois de atualizar o site, **atualize também o backend** (abaixo). Enquanto o Code.gs for o antigo, o app avisa no topo e as telas novas não gravam.
+
 ## Atualizar o backend depois
 
 Quando o `Code.gs` mudar, cole a nova versão e use **Implantar › Gerenciar implantações › Editar (lápis) › Versão: Nova versão**. Assim a URL `/exec` continua a mesma.
@@ -78,7 +102,7 @@ Ela faz os passos 2 a 4 com a própria conta: planilha, Apps Script e Client ID 
 index.html, manifest.webmanifest, sw.js   PWA
 css/app.css                               design "Laboratório" (claro e escuro)
 js/core/                                  regras sem interface: CSV, importação, modelo, simulador
-js/screens/                               as 7 telas
+js/screens/                               as 8 telas + importação do extrato
 js/store.js, js/auth.js                   dados (Apps Script ou demonstração) e login Google
 apps-script/                              backend
 ```

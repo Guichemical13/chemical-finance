@@ -34,6 +34,21 @@ export function demoDb() {
   for (const [d, desc, v, c] of base.slice(0, 6)) lancamentos.push(av(aberta, d, desc, v, c));
   lancamentos.push(L({ tipo: 'receita', desc: 'Pix recebido · jantar', valor: 120, categoria: 'res', origem: 'Pix', mes: fechada, data: dia(fechada, 7) }));
 
+  // A receber (fictício): um empréstimo atrasado, uma venda em dia e a divisão do notebook.
+  const note = lancamentos.find(l => l.desc === 'Notebook');
+  const venc = (m, d) => `${m}-${String(d).padStart(2, '0')}`;
+  const pessoas = [{ id: 'pes-1', nome: 'Lucas' }, { id: 'pes-2', nome: 'Marina' }, { id: 'pes-3', nome: 'Namorado' }];
+  const negociacoes = [
+    { id: 'neg-1', pessoa: 'pes-1', tipo: 'emprestimo', desc: 'Conserto do carro', total: 900, data: venc(addMes(aberta, -3), 12), parcelas: 3, primeiroVenc: venc(addMes(aberta, -2), 12) },
+    { id: 'neg-2', pessoa: 'pes-2', tipo: 'venda', desc: 'Console usado', total: 1600, data: venc(addMes(aberta, -2), 3), parcelas: 4, primeiroVenc: venc(addMes(aberta, -1), 3) },
+    { id: 'neg-3', pessoa: 'pes-3', tipo: 'divisao', desc: 'Notebook', lancId: note.id, divisao: 'pct', divValor: 50, data: note.data, parcelas: 10, primeiroVenc: venc(note.mes, cfg.diaVencimento), total: 2449.5 },
+  ];
+  const recebimentos = [
+    { id: 'rcb-1', negociacao: 'neg-1', data: venc(addMes(aberta, -2), 14), valor: 300, forma: 'Pix' },
+    { id: 'rcb-2', negociacao: 'neg-2', data: venc(addMes(aberta, -1), 3), valor: 400, forma: 'Pix' },
+    { id: 'rcb-3', negociacao: 'neg-3', data: venc(fechada, cfg.diaVencimento + 1), valor: 244.95, forma: 'Pix' },
+  ];
+
   const orc = { mer: 1300, res: 500, tra: 450, ass: 300, sau: 300, cas: 1000, laz: 500, com: 700, edu: 400, out: 200, div: 1000 };
   return {
     categorias: CATEGORIAS_PADRAO.map(c => ({ ...c, ativa: true })),
@@ -57,6 +72,7 @@ export function demoDb() {
       { id: 'd-fin-' + i, mes: addMes(fechada, i - 2), nome: 'Financiamento imobiliário', saldo: 101000 - 500 * i, parcela: 1000, restantes: 150 - i, fim: '2039-02' },
       { id: 'd-con-' + i, mes: addMes(fechada, i - 2), nome: 'Empréstimo consignado', saldo: 41000 - 1300 * i, parcela: 1300, restantes: 31 - i, fim: '2029-04' },
     ]),
+    pessoas, negociacoes, recebimentos, fundos: [], extratos: [],
     config: [{ id: 'email', valor: 'demo@exemplo.com' }],
   };
 }

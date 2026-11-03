@@ -1,12 +1,12 @@
 // Service worker: guarda o app (não os dados) para abrir sem internet.
 // Os dados offline ficam na cópia local do app; chamadas ao Apps Script nunca passam por cache.
-const VERSAO = 'cf-v1.0.0';
+const VERSAO = 'cf-v1.1.0';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/ui.js', 'js/store.js', 'js/auth.js', 'js/demo.js',
-  'js/core/format.js', 'js/core/csv.js', 'js/core/model.js', 'js/core/importer.js', 'js/core/plan.js',
+  'js/core/format.js', 'js/core/csv.js', 'js/core/model.js', 'js/core/importer.js', 'js/core/plan.js', 'js/core/receber.js', 'js/core/extrato.js',
   'js/screens/graf.js', 'js/screens/inicio.js', 'js/screens/lancamentos.js', 'js/screens/importar.js',
-  'js/screens/orcamento.js', 'js/screens/plano.js', 'js/screens/patrimonio.js', 'js/screens/ajustes.js',
+  'js/screens/orcamento.js', 'js/screens/plano.js', 'js/screens/patrimonio.js', 'js/screens/ajustes.js', 'js/screens/receber.js', 'js/screens/extrato.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

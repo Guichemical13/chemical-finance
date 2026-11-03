@@ -2,6 +2,7 @@ import { h, elemento, sheet, toast, confirmar, select, campo, tagTom } from '../
 import { brl, brlSinal, nomeMesLongo, addMes, dataBR, hojeISO, norm, uid, cents, parseValor, mesDe } from '../core/format.js';
 import { linhasDoMes, ORIGENS, CARTAO, mesFaturaAberta, mesFaturaDaCompra } from '../core/model.js';
 import { categoria, categoriasAtivas, salvar, excluir, gravar } from '../store.js';
+import { divisaoDoLancamento, pessoaDe } from '../core/receber.js';
 
 export function render(ctx) {
   const { store } = ctx, est = ctx.estado('lanc');
@@ -43,6 +44,9 @@ export function render(ctx) {
       if (x.l.recorrente) b.push(tagTom('info', 'Recorrente', '↻'));
       b.push(tagTom(x.l.natureza === 'fixo' || x.l.recorrente ? 'acc' : '', x.l.natureza === 'fixo' || x.l.recorrente ? 'Fixo' : 'Pontual', x.l.natureza === 'fixo' || x.l.recorrente ? '■' : '○'));
       if (x.l.antigo) b.push(tagTom('', 'Antigo'));
+      if (x.l.virtualTipo === 'receber') b.push(tagTom('acc', 'A receber', '⇠'));
+      const dv = !x.l.virtual && x.l.origem === CARTAO ? divisaoDoLancamento(store.db, x.l.id) : null;
+      if (dv) b.push(tagTom('acc', 'Dividida com ' + pessoaDe(store.db, dv.pessoa).nome, '÷'));
       if (x.n === 1 && x.l.origem === CARTAO && !x.l.antigo && x.l.mes >= (store.cfg.planoInicio || '')) b.push(tagTom('neg', 'Parcelamento novo', '!'));
       return [sep, h('div.tx', { role: 'listitem', tabindex: 0, onclick: () => editar(ctx, x.l, est.mes), onkeydown: e => { if (e.key === 'Enter') editar(ctx, x.l, est.mes); } },
         elemento(categoria(x.l.categoria)),
@@ -74,6 +78,7 @@ export function render(ctx) {
 // ---------- editor ----------
 export function editar(ctx, l, mesVisto) {
   const { store } = ctx;
+  if (l?.virtualTipo === 'receber') { ctx.go('rec', { ver: l.ref }); return; }
   if (l?.virtual) { ctx.go('aj', { secao: 'salario' }); return; }
   const novo = !l;
   const f = l ? { ...l, valorTxt: String(l.ajustes?.[mesVisto] ?? l.valor).replace('.', ',') } : {
@@ -104,7 +109,8 @@ export function editar(ctx, l, mesVisto) {
       } catch (e) { erro.textContent = e.message; }
     };
     const apagar = async () => {
-      if (!await confirmar('Excluir lançamento?', `"${l.desc}" sai de todos os meses${l.parcelas > 1 ? ' (todas as parcelas)' : ''}.`, 'Excluir', true)) return;
+      const dvx = divisaoDoLancamento(store.db, l.id);
+      if (!await confirmar('Excluir lançamento?', `"${l.desc}" sai de todos os meses${l.parcelas > 1 ? ' (todas as parcelas)' : ''}.${dvx ? ` A divisão com ${pessoaDe(store.db, dvx.pessoa).nome} continua em "A receber", com o valor gravado.` : ''}`, 'Excluir', true)) return;
       try { await excluir('lancamentos', l.id); close(); toast('Lançamento excluído'); } catch (e) { erro.textContent = e.message; }
     };
     const rec = h('div.fgrid.full', { style: { display: f.recorrente ? '' : 'none' } },
@@ -127,6 +133,9 @@ export function editar(ctx, l, mesVisto) {
         h('label.row.full', { style: { gap: '8px', fontSize: '14px' } }, h('input', { type: 'checkbox', checked: !!f.antigo, onchange: e => f.antigo = e.target.checked }), 'Antigo (parcelamento de antes do plano, não gera alerta)')),
       l?.importId ? h('p.muted.mono', { style: { margin: 0, fontSize: '12px' } }, 'Importado da fatura · ', l.id) : null,
       erro,
+      !novo && l.origem === CARTAO && l.tipo !== 'receita' && !l.recorrente ? (dv => h('div.row', {},
+        h('button.btn.sm', { onclick: () => { close(); ctx.go('rec', dv ? { ver: dv.id } : { dividir: l.id }); } }, dv ? `÷ Ver divisão com ${pessoaDe(store.db, dv.pessoa).nome}` : '÷ Dividir com alguém'),
+        dv ? null : h('span.muted', { style: { fontSize: '13px' } }, 'A pessoa te paga a parte dela; o app abate do gasto.')))(divisaoDoLancamento(store.db, l.id)) : null,
       h('div.row', {}, !novo ? h('button.btn.danger', { onclick: apagar }, 'Excluir') : null, h('span', { style: { flex: 1 } }),
         h('button.btn', { onclick: close }, 'Cancelar'), h('button.btn.pri', { onclick: salvarClick }, 'Salvar')));
   });

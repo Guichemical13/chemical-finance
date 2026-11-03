@@ -2,6 +2,7 @@ import { h, elemento } from '../ui.js';
 import { brl, brlSinal, nomeMesLongo, addMes, hojeISO, dataBRAno, diasAte, pct } from '../core/format.js';
 import { resumoMes, mesFaturaAberta, ultimaCaixinha } from '../core/model.js';
 import { simular, previstoCaixinha } from '../core/plan.js';
+import { parteDosOutrosNaFatura } from '../core/receber.js';
 import { categoria } from '../store.js';
 
 export function vencimentoDe(mes, cfg) { return `${mes}-${String(cfg.diaVencimento || 2).padStart(2, '0')}`; }
@@ -25,6 +26,7 @@ export function render(ctx) {
   const r = resumoMes(db, mes);
   const teto = cfg.tetoFatura, acima = r.fatura - teto;
   const al = ctx.avisos();
+  const parteOutros = parteDosOutrosNaFatura(db, mes);
 
   const cx = ultimaCaixinha(db);
   const prev = previstoCaixinha(cfg.simulador);
@@ -49,6 +51,7 @@ export function render(ctx) {
           h('div.bar.hatch', { 'aria-hidden': 'true' },
             h('span', { style: { width: Math.min(100, Math.min(r.fatura, teto) / Math.max(r.fatura, teto) * 100) + '%', '--c': 'var(--ink)' } }),
             acima > 0 ? h('span.over', { style: { left: (teto / r.fatura * 100) + '%', width: (acima / r.fatura * 100) + '%' } }) : null),
+          parteOutros ? h('div.kv', { style: { marginTop: '10px' } }, h('span', {}, '÷ Custo real (sem a parte dos outros)'), h('span', {}, brl(r.fatura - parteOutros), h('span.muted', {}, ' · ', brl(parteOutros), ' a receber'))) : null,
           h('hr.rule'),
           h('div.kv', {}, h('span', {}, '■ Fixos e recorrentes'), h('span', {}, brl(r.fixos), ' · ', r.saidas ? pct(r.fixos / r.saidas) : '0%')),
           h('div.kv', {}, h('span', {}, '○ Pontuais'), h('span', {}, brl(r.pontuais), ' · ', r.saidas ? pct(r.pontuais / r.saidas) : '0%')),

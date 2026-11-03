@@ -14,7 +14,7 @@
  *   4. Implantar > Nova implantação > App da Web: Executar como "Eu", Acesso "Qualquer pessoa".
  */
 
-var VERSAO = '1.0.0';
+var VERSAO = '1.1.0';
 
 var TABELAS = {
   lancamentos: ['id', 'tipo', 'desc', 'valor', 'data', 'mes', 'categoria', 'origem', 'natureza', 'recorrente', 'fimMes', 'parcelas', 'antigo', 'padrao', 'ajustes', 'chave', 'importId', 'obs', 'alertaVisto', 'criadoEm', 'editadoEm'],
@@ -25,13 +25,20 @@ var TABELAS = {
   importacoes: ['id', 'vencimento', 'arquivo', 'linhas', 'novas', 'duplicadas', 'total', 'pagamentoAnterior', 'conferenciaAnterior', 'criados', 'ajustes', 'status', 'em'],
   plano: ['id', 'data', 'titulo', 'tipo', 'feito'],
   caixinha: ['id', 'data', 'saldo', 'obs'],
-  patrimonio: ['id', 'mes', 'produto', 'classe', 'saldo'],
+  patrimonio: ['id', 'mes', 'produto', 'classe', 'saldo', 'cnpj', 'fonte'],
   dividas: ['id', 'mes', 'nome', 'saldo', 'parcela', 'restantes', 'fim'],
   config: ['id', 'valor'],
+  // 1.1.0 — A receber
+  pessoas: ['id', 'nome', 'obs', 'criadoEm'],
+  negociacoes: ['id', 'pessoa', 'tipo', 'desc', 'total', 'data', 'parcelas', 'primeiroVenc', 'lancId', 'divisao', 'divValor', 'status', 'perdoadoEm', 'perdoadoValor', 'perdaLancId', 'obs', 'criadoEm', 'editadoEm'],
+  recebimentos: ['id', 'negociacao', 'data', 'valor', 'forma', 'item', 'obs', 'lancSobraId', 'criadoEm'],
+  // 1.1.0 — Extrato de fundos (PDF)
+  fundos: ['id', 'nome', 'apelido', 'classe', 'criadoEm'],
+  extratos: ['id', 'mes', 'emitidoEm', 'arquivo', 'total', 'rendimento', 'posicoes', 'transacoes', 'pendentes', 'substituidos', 'em'],
 };
 // Colunas guardadas como JSON (objetos e listas).
-var JSON_COLS = { ajustes: 1, criados: 1 };
-var NUM_COLS = { valor: 1, parcelas: 1, numero: 1, liquido: 1, saldo: 1, parcela: 1, restantes: 1, linhas: 1, novas: 1, duplicadas: 1, total: 1, usos: 1 };
+var JSON_COLS = { ajustes: 1, criados: 1, posicoes: 1, transacoes: 1, pendentes: 1, substituidos: 1 };
+var NUM_COLS = { valor: 1, parcelas: 1, numero: 1, liquido: 1, saldo: 1, parcela: 1, restantes: 1, linhas: 1, novas: 1, duplicadas: 1, total: 1, usos: 1, divValor: 1, perdoadoValor: 1, rendimento: 1 };
 var BOOL_COLS = { recorrente: 1, antigo: 1, ativa: 1, feito: 1, alertaVisto: 1 };
 
 // ---------- HTTP ----------

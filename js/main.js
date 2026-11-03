@@ -9,6 +9,7 @@ import * as imp from './screens/importar.js';
 import * as orc from './screens/orcamento.js';
 import * as plano from './screens/plano.js';
 import * as pat from './screens/patrimonio.js';
+import * as rec from './screens/receber.js';
 import * as aj from './screens/ajustes.js';
 
 export const TELAS = [
@@ -17,8 +18,9 @@ export const TELAS = [
   { id: 'imp', label: 'Importar fatura', curto: 'Importar', simbolo: 'Im', numero: 3, mod: imp },
   { id: 'orc', label: 'Orçamento', simbolo: 'Or', numero: 4, mod: orc },
   { id: 'plano', label: 'Plano', simbolo: 'Pl', numero: 5, mod: plano },
-  { id: 'pat', label: 'Patrimônio e dívidas', curto: 'Patrimônio', simbolo: 'Pa', numero: 6, mod: pat },
-  { id: 'aj', label: 'Ajustes', simbolo: 'Aj', numero: 7, mod: aj },
+  { id: 'rec', label: 'A receber', simbolo: 'Ar', numero: 6, mod: rec },
+  { id: 'pat', label: 'Patrimônio e dívidas', curto: 'Patrimônio', simbolo: 'Pa', numero: 7, mod: pat },
+  { id: 'aj', label: 'Ajustes', simbolo: 'Aj', numero: 8, mod: aj },
 ];
 const MOBILE = ['inicio', 'lanc', 'imp', 'plano'];
 const raiz = document.getElementById('app');
@@ -92,6 +94,7 @@ function marca(tam = '') {
 function faixa() {
   if (store.modo === 'demo') return h('div.banner.demo', {}, 'Modo demonstração · dados fictícios, salvos só neste aparelho. ', h('a', { href: '#aj' }, 'Conectar meu backend'));
   if (store.status === 'offline') return h('div.banner', {}, `Sem internet · mostrando o que foi carregado em ${new Date(store.ultimaSync).toLocaleString('pt-BR')}. Lançar e importar ficam bloqueados até voltar.`);
+  if (store.backendVelho && store.status === 'pronto') return h('div.banner', { style: { background: 'var(--warnTint)', color: 'var(--warn)' } }, 'O backend (Apps Script) está numa versão antiga: "A receber" e o extrato de fundos ainda não gravam. Cole o Code.gs novo e publique uma nova versão (README › Atualizar o backend).');
   if (store.status === 'erro') return h('div.banner', { style: { background: 'var(--negTint)', color: 'var(--neg)' } }, store.erro, ' ', h('button.btn.sm', { onclick: carregar }, 'Tentar de novo'));
   return null;
 }
@@ -115,7 +118,7 @@ export function desenhar() {
     h('aside.side', { 'aria-label': 'Navegação' },
       h('div.brand', {}, marca(), h('div', {}, h('b', {}, 'Chemical Finance'), h('small', {}, store.modo === 'demo' ? 'demonstração' : 'finanças pessoais'))),
       nav(id, nAl),
-      h('div.foot', {}, store.ultimaSync && store.modo !== 'demo' ? `sincronizado ${new Date(store.ultimaSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '', h('br'), 'teclas 1–7 navegam')),
+      h('div.foot', {}, store.ultimaSync && store.modo !== 'demo' ? `sincronizado ${new Date(store.ultimaSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '', h('br'), 'teclas 1–8 navegam')),
     h('header.topbar', {}, marca('sm'), h('b', {}, tela.curto || tela.label), h('span.spacer'), nAl ? h('button.btn.sm.ghost', { onclick: () => go('inicio'), 'aria-label': `${nAl} alertas` }, h('span.neg', {}, '◆ ' + nAl)) : null),
     h('main.main', { id: 'conteudo' }, faixa(), conteudo),
     bottom(id, nAl), menuMais(id)));

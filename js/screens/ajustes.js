@@ -33,12 +33,17 @@ export function render(ctx) {
           novoSalario())),
       h('div.stack', {},
         sec('alertas', 'Alertas',
-          [['parcelamento', 'Novo parcelamento no cartão'], ['teto', 'Fatura acima do teto'], ['caixinha', 'Caixinha abaixo da trajetória'], ['marcos', 'Datas do plano (7 dias antes)']].map(([k, t]) =>
+          [['parcelamento', 'Novo parcelamento no cartão'], ['teto', 'Fatura acima do teto'], ['caixinha', 'Caixinha abaixo da trajetória'], ['marcos', 'Datas do plano (7 dias antes)'], ['receber', 'A receber: atrasos e resumo do mês']].map(([k, t]) =>
             h('div.row', { style: { padding: '8px 0', borderBottom: '1px solid var(--line)' } }, h('span', { style: { flex: 1 } }, t),
               toggle(al[k] !== false, v => salvarConfig({ alertas: { ...al, [k]: v } }).catch(e => toast(e.message)), t))),
           h('div.fgrid', { style: { marginTop: '12px' } },
             numCfg('tetoFatura', 'Teto da fatura (R$)'), numCfg('diaFechamento', 'Dia em que a fatura vira'), numCfg('diaVencimento', 'Dia do vencimento'),
             h('label.f', {}, 'Plano começou em (AAAA-MM)', h('input.in.mono', { value: cfg.planoInicio, onchange: e => salvarConfig({ planoInicio: e.target.value }).catch(er => toast(er.message)) })))),
+        sec('receber', 'A receber',
+          h('div.fgrid', {},
+            numCfg('diasAvisoReceber', 'Avisar atraso depois de (dias)'),
+            h('label.f', {}, 'Custo de oportunidade (% a.a.)', h('input.in.mono', { inputmode: 'decimal', value: String(Math.round((cfg.taxaOportunidadeAA ?? 0.175) * 1000) / 10).replace('.', ','), onchange: e => { const v = parseValor(e.target.value); if (Number.isFinite(v) && v >= 0) salvarConfig({ taxaOportunidadeAA: v / 100 }).catch(er => toast(er.message)); } }))),
+          h('p.muted', { style: { margin: '8px 0 0', fontSize: '13px' } }, 'Use a taxa da sua dívida mais cara enquanto ela existir (consignado ~17,5% a.a.). Depois de quitar, troque pelo rendimento líquido da caixinha.')),
         sec('aparencia', 'Aparência', h('div.row', { role: 'group', 'aria-label': 'Tema' }, [['sistema', 'Do sistema'], ['claro', 'Claro'], ['escuro', 'Escuro']].map(([v, t]) =>
           h('button.chip', { 'aria-pressed': String(tema === v), onclick: () => { localStorage.setItem('cf.tema', v); ctx.aplicarTema(v); ctx.refresh(); } }, t)))),
         sec('dados', 'Dados e conexão',

@@ -1,5 +1,6 @@
 // Modelo de dados: categorias, lançamentos (à vista, parcelados, recorrentes) e cálculos por mês.
 import { addMes, difMes, cents, mesDe, hojeISO, diasAte, norm } from './format.js';
+import { linhasReceberDoMes, resumoReceber, divisaoDoLancamento, parteNaOcorrencia, pessoaDe } from './receber.js';
 
 export const CATEGORIAS_PADRAO = [
   { id: 'mer', nome: 'Mercado', simbolo: 'Me', numero: 1, cor: 'mer' },
@@ -14,8 +15,9 @@ export const CATEGORIAS_PADRAO = [
   { id: 'out', nome: 'Outros', simbolo: 'Ou', numero: 10, cor: 'out' },
   { id: 'sal', nome: 'Salário', simbolo: 'Sl', numero: 11, cor: 'sal' },
   { id: 'div', nome: 'Dívidas', simbolo: 'Dv', numero: 12, cor: 'div' },
+  { id: 'ven', nome: 'Vendas', simbolo: 'Vd', numero: 13, cor: 'ven' },
 ];
-export const CORES = ['mer', 'res', 'tra', 'ass', 'sau', 'cas', 'laz', 'com', 'edu', 'out', 'sal', 'div'];
+export const CORES = ['mer', 'res', 'tra', 'ass', 'sau', 'cas', 'laz', 'com', 'edu', 'out', 'sal', 'div', 'ven'];
 
 export const ORIGENS = ['Cartão Nubank', 'Conta corrente', 'Pix', 'VR', 'VA', 'Dinheiro', 'Desconto em folha', 'FGTS', 'Corretora', 'Outro'];
 export const CARTAO = 'Cartão Nubank';
@@ -26,8 +28,10 @@ export const CONFIG_PADRAO = {
   diaFechamento: 25, // compras a partir deste dia caem na fatura seguinte
   diaVencimento: 2,
   planoInicio: '2026-10', // parcelamentos que começam antes disto são "antigos"
-  alertas: { parcelamento: true, teto: true, caixinha: true, marcos: true },
+  alertas: { parcelamento: true, teto: true, caixinha: true, marcos: true, receber: true },
   diasAvisoMarco: 7,
+  diasAvisoReceber: 3, // parcela a receber atrasada há mais de N dias vira alerta
+  taxaOportunidadeAA: 0.175, // custo de oportunidade do dinheiro emprestado (hoje: o consignado)
   tema: 'sistema',
   simulador: {
     // Valores de exemplo; os reais são gravados na planilha (Ajustes > Plano ou migração).
@@ -41,6 +45,18 @@ export const CONFIG_PADRAO = {
     meta: '2029-01',
   },
 };
+
+/** Configuração efetiva: padrão + linhas da aba "config" (id, valor). Aceita também um objeto pronto. */
+export function configDe(db) {
+  const rows = db && db.config;
+  if (rows && !Array.isArray(rows)) return rows;
+  const c = structuredClone(CONFIG_PADRAO);
+  for (const r of rows || []) {
+    if (r.valor && typeof r.valor === 'object' && !Array.isArray(r.valor) && c[r.id] && typeof c[r.id] === 'object' && !Array.isArray(c[r.id])) c[r.id] = { ...c[r.id], ...r.valor };
+    else c[r.id] = r.valor;
+  }
+  return c;
+}
 
 // Marcos de EXEMPLO (modo demonstração). Os marcos reais vêm da migração e ficam só na planilha.
 export const MARCOS_EXEMPLO = [
@@ -89,6 +105,7 @@ export function linhasDoMes(db, mes) {
     const o = ocorrencia(l, mes);
     if (o) out.push({ l, ...o, mov: sinal(l, o.valor) });
   }
+  out.push(...linhasReceberDoMes(db, mes));
   const sal = salarioDoMes(db.salario, mes);
   if (sal) out.push({ l: { id: 'salario@' + mes, tipo: 'receita', desc: 'Salário', categoria: 'sal', origem: 'Conta corrente', natureza: 'fixo', recorrente: true, virtual: true, data: mes + '-05', mes }, valor: sal, mov: sal });
   return out;
@@ -129,7 +146,7 @@ export function ultimaCaixinha(db) {
 
 // ---- alertas ----
 export function alertas(db, { hoje = hojeISO(), previstoCaixinha } = {}) {
-  const cfg = db.config || CONFIG_PADRAO;
+  const cfg = configDe(db);
   const on = cfg.alertas || {};
   const out = [];
   const aberta = mesFaturaAberta(cfg, hoje);
@@ -139,7 +156,10 @@ export function alertas(db, { hoje = hojeISO(), previstoCaixinha } = {}) {
       if (l.origem !== CARTAO || !(Number(l.parcelas) > 1) || l.antigo) continue;
       if (l.mes < (cfg.planoInicio || '0000-00')) continue;
       if (l.mes < fechada || (l.alertaVisto)) continue;
-      out.push({ id: 'parc-' + l.id, sev: 'alta', glyph: '!', nivel: 'Urgente', titulo: 'Novo parcelamento no cartão', texto: `${l.desc} em ${l.parcelas} × ${fmt(l.valor)}. O plano não permite novos parcelamentos.`, acao: 'Ver lançamento', to: 'lanc', ref: l.id });
+      const dv = divisaoDoLancamento(db, l.id);
+      const parte = dv && dv.status !== 'perdoada' ? parteNaOcorrencia(dv, l, Number(l.valor)) : 0;
+      const div = parte ? ` Dividida com ${pessoaDe(db, dv.pessoa).nome}: sua parte é ${fmt(Number(l.valor) - parte)} por mês, mas o limite e a fatura sobem pelo valor cheio.` : '';
+      out.push({ id: 'parc-' + l.id, sev: 'alta', glyph: '!', nivel: 'Urgente', titulo: 'Novo parcelamento no cartão', texto: `${l.desc} em ${l.parcelas} × ${fmt(l.valor)}. O plano não permite novos parcelamentos.${div}`, acao: 'Ver lançamento', to: 'lanc', ref: l.id });
     }
   }
   if (on.teto !== false) {
@@ -161,6 +181,18 @@ export function alertas(db, { hoje = hojeISO(), previstoCaixinha } = {}) {
       const d = diasAte(m.data, hoje);
       if (d >= 0 && d <= (cfg.diasAvisoMarco || 7)) out.push({ id: 'marco-' + m.id, sev: 'info', glyph: '◷', nivel: 'Lembrete', titulo: d === 0 ? 'Marco do plano é hoje' : `Marco do plano em ${d} ${d === 1 ? 'dia' : 'dias'}`, texto: m.titulo, acao: 'Ver plano', to: 'plano' });
       else if (d < 0 && d >= -30) out.push({ id: 'marco-' + m.id, sev: 'media', glyph: '◷', nivel: 'Atrasado', titulo: `Marco atrasado há ${-d} ${d === -1 ? 'dia' : 'dias'}`, texto: m.titulo, acao: 'Ver plano', to: 'plano' });
+    }
+  }
+  if (on.receber !== false && (db.negociacoes || []).length) {
+    const r = resumoReceber(db, hoje);
+    const limite = cfg.diasAvisoReceber ?? 3;
+    for (const x of r.abertas) {
+      if (x.s.status !== 'atrasada' || x.s.diasAtraso <= limite) continue;
+      const nome = pessoaDe(db, x.n.pessoa).nome;
+      out.push({ id: 'rec-' + x.n.id + '-' + x.s.parcelas.find(p => p.st === 'vencida')?.n, sev: 'media', glyph: '⇠', nivel: 'A receber', titulo: `${nome} está ${x.s.diasAtraso} dias atrasado`, texto: `${x.n.desc}: ${fmt(x.s.valorAtrasado)} em atraso, de ${fmt(x.s.saldo)} em aberto.`, acao: 'Ver', to: 'rec', ref: x.n.id });
+    }
+    if (Number(hoje.slice(8, 10)) <= 5 && r.total > 0) {
+      out.push({ id: 'rec-resumo-' + mesDe(hoje), sev: 'info', glyph: '⇠', nivel: 'Resumo do mês', titulo: `${fmt(r.total)} a receber`, texto: `${r.abertas.length} ${r.abertas.length === 1 ? 'negociação' : 'negociações'} em aberto com ${r.pessoas} ${r.pessoas === 1 ? 'pessoa' : 'pessoas'}${r.atrasado ? `, ${fmt(r.atrasado)} em atraso` : ''}.`, acao: 'Ver', to: 'rec' });
     }
   }
   return out;
