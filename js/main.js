@@ -243,6 +243,9 @@ function telaConectar() {
   let msg;
   const conectar = async e => {
     e.preventDefault();
+    // Apps de mensagem (ex.: WhatsApp) transformam o Client ID em link e colam "https://" na frente.
+    s.url = s.url.replace(/\s+/g, '');
+    s.cid = s.cid.replace(/\s+/g, '').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(s.url.trim())) { msg.textContent = 'A URL deve ser a do App da Web do Apps Script, terminando em /exec.'; return; }
     if (!/\.apps\.googleusercontent\.com$/.test(s.cid.trim())) { msg.textContent = 'O Client ID termina em .apps.googleusercontent.com.'; return; }
     setup.set({ modo: 'real', backendUrl: s.url.trim(), clientId: s.cid.trim() });
@@ -251,8 +254,8 @@ function telaConectar() {
   return h('div.gate', {}, h('form.box', { onsubmit: conectar },
     marca('lg'), h('h1', {}, 'Chemical Finance'),
     h('p.muted', { style: { margin: 0 } }, 'Seus dados ficam numa planilha Google só sua. Cole os dois endereços do seu backend (o guia de instalação explica onde achar).'),
-    h('label.f', {}, 'URL do App da Web (Apps Script)', h('input.in.mono', { id: 'url', placeholder: 'https://script.google.com/macros/s/…/exec', oninput: e => s.url = e.target.value, autocomplete: 'off' })),
-    h('label.f', {}, 'OAuth Client ID', h('input.in.mono', { id: 'cid', placeholder: '….apps.googleusercontent.com', oninput: e => s.cid = e.target.value, autocomplete: 'off' })),
+    h('label.f', {}, 'URL do App da Web (Apps Script)', h('input.in.mono', { id: 'url', placeholder: 'https://script.google.com/macros/s/…/exec', oninput: e => s.url = e.target.value, autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', inputmode: 'url' })),
+    h('label.f', {}, 'OAuth Client ID', h('input.in.mono', { id: 'cid', placeholder: '….apps.googleusercontent.com', oninput: e => s.cid = e.target.value, autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' })),
     msg = h('p.neg', { role: 'alert', style: { margin: 0, minHeight: '1em' } }),
     h('button.btn.pri', { type: 'submit' }, 'Conectar'),
     h('button.btn', { type: 'button', onclick: async () => { setup.set({ modo: 'demo' }); await iniciarApp(); } }, 'Ver a demonstração com dados fictícios')));
