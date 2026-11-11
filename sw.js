@@ -1,6 +1,6 @@
 // Service worker: guarda o app (não os dados) para abrir sem internet.
 // Os dados offline ficam na cópia local do app; chamadas ao Apps Script nunca passam por cache.
-const VERSAO = 'cf-v1.2.0';
+const VERSAO = 'cf-v1.2.1';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/ui.js', 'js/store.js', 'js/auth.js', 'js/demo.js',
